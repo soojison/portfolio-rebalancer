@@ -1,0 +1,203 @@
+.app {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem 4rem;
+}
+
+.app__header {
+  margin-bottom: 1.5rem;
+}
+
+.app__header h1 {
+  margin: 0 0 0.25rem;
+  font-size: 1.75rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.app__subtitle {
+  margin: 0;
+  color: #6b7280;
+  font-size: 0.95rem;
+}
+
+.app__footer {
+  margin-top: 2rem;
+  text-align: center;
+}
+
+.card {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 1.25rem;
+}
+
+.card h2 {
+  margin: 0 0 1rem;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.card__header h2 {
+  margin: 0;
+}
+
+.add-holding {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.add-holding input {
+  flex: 1;
+  min-width: 120px;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+th,
+td {
+  text-align: left;
+  padding: 0.6rem 0.5rem;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+th {
+  font-weight: 600;
+  color: #6b7280;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+tr.totals td {
+  border-top: 2px solid #e5e7eb;
+  border-bottom: none;
+  padding-top: 0.8rem;
+}
+
+.shares-edit {
+  width: 90px;
+  padding: 0.3rem 0.5rem;
+}
+
+.muted {
+  color: #6b7280;
+}
+
+.small {
+  font-size: 0.8rem;
+}
+
+.warn {
+  color: #d97706;
+}
+
+.error {
+  color: #dc2626;
+  margin-top: 0.75rem;
+  font-size: 0.9rem;
+}
+
+.dist {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+  align-items: center;
+}
+
+@media (max-width: 640px) {
+  .dist {
+    grid-template-columns: 1fr;
+  }
+}
+
+.swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  margin-right: 0.5rem;
+  vertical-align: middle;
+}
+
+.gap-pos {
+  color: #059669;
+}
+
+.gap-neg {
+  color: #dc2626;
+}
+
+.targets {
+  display: flex;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.target-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.target-row__label {
+  min-width: 90px;
+}
+
+.target-row input {
+  width: 70px;
+}
+
+.newmoney {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.newmoney input {
+  width: 140px;
+}
+
+.rebalance {
+  margin-top: 0.5rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  .card {
+    background: #1e293b;
+    border-color: #334155;
+  }
+  th,
+  td {
+    border-color: #334155;
+  }
+  tr.totals td {
+    border-top-color: #475569;
+  }
+  th {
+    color: #94a3b8;
+  }
+  .muted {
+    color: #94a3b8;
+  }
+  .app__subtitle {
+    color: #94a3b8;
+  }
+}
