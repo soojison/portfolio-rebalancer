@@ -1,6 +1,34 @@
 import type { Allocation } from './types'
 import { normalizeAlloc } from './allocations'
 
+// In dev we use vite's server.proxy to dodge CORS. In production builds (e.g.
+// github pages) there's no proxy, so we route through a public CORS proxy.
+const isProd = import.meta.env.PROD
+const CORS = 'https://corsproxy.io/?url='
+
+function urlFor(host: 'stooq' | 'vanguard' | 'yahoo-q1' | 'yahoo-q2', path: string): string {
+  if (!isProd) {
+    const prefix =
+      host === 'stooq'
+        ? '/stooq'
+        : host === 'vanguard'
+          ? '/vg'
+          : host === 'yahoo-q1'
+            ? '/yf'
+            : '/yfq'
+    return `${prefix}${path}`
+  }
+  const base =
+    host === 'stooq'
+      ? 'https://stooq.com'
+      : host === 'vanguard'
+        ? 'https://investor.vanguard.com'
+        : host === 'yahoo-q1'
+          ? 'https://query1.finance.yahoo.com'
+          : 'https://query2.finance.yahoo.com'
+  return `${CORS}${encodeURIComponent(`${base}${path}`)}`
+}
+
 export type PriceSource = 'stooq' | 'vanguard' | 'yahoo' | 'none'
 
 export type QuoteInfo = {
@@ -17,7 +45,7 @@ export type QuoteInfo = {
 // For unknown symbols stooq fills numeric fields with "N/D".
 async function fetchStooqOne(ticker: string): Promise<QuoteInfo | null> {
   const sym = ticker.toLowerCase()
-  const url = `/stooq/q/l/?s=${encodeURIComponent(sym)}.us&i=d&f=sd2t2ohlcvn&h=0`
+  const url = urlFor('stooq', `/q/l/?s=${encodeURIComponent(sym)}.us&i=d&f=sd2t2ohlcvn&h=0`)
   try {
     const res = await fetch(url)
     if (!res.ok) return null
@@ -56,8 +84,8 @@ async function fetchStooq(
 async function fetchVanguardOne(ticker: string): Promise<QuoteInfo | null> {
   const sym = ticker.toLowerCase()
   const paths = [
-    `/vg/investment-products/mutual-funds/profile/api/${sym}/price`,
-    `/vg/investment-products/etfs/profile/api/${sym}/price`,
+    urlFor('vanguard', `/investment-products/mutual-funds/profile/api/${sym}/price`),
+    urlFor('vanguard', `/investment-products/etfs/profile/api/${sym}/price`),
   ]
   for (const path of paths) {
     try {
@@ -81,9 +109,12 @@ async function fetchVanguardOne(ticker: string): Promise<QuoteInfo | null> {
 // Returns recent OHLC for one ticker; we just take the last close.
 async function fetchYahooChart(ticker: string): Promise<QuoteInfo | null> {
   try {
-    const url = `/yf/v8/finance/chart/${encodeURIComponent(
-      ticker.toUpperCase(),
-    )}?interval=1d&range=5d`
+    const url = urlFor(
+      'yahoo-q1',
+      `/v8/finance/chart/${encodeURIComponent(
+        ticker.toUpperCase(),
+      )}?interval=1d&range=5d`,
+    )
     const res = await fetch(url)
     if (!res.ok) return null
     const json = await res.json()
@@ -153,9 +184,12 @@ export async function fetchQuotes(
 export async function fetchFundAllocation(
   ticker: string,
 ): Promise<Allocation | null> {
-  const url = `/yfq/v10/finance/quoteSummary/${encodeURIComponent(
-    ticker.toUpperCase(),
-  )}?modules=topHoldings,fundProfile`
+  const url = urlFor(
+    'yahoo-q2',
+    `/v10/finance/quoteSummary/${encodeURIComponent(
+      ticker.toUpperCase(),
+    )}?modules=topHoldings,fundProfile`,
+  )
   try {
     const res = await fetch(url)
     if (!res.ok) return null

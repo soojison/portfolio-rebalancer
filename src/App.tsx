@@ -239,6 +239,60 @@ export default function App() {
     )
   }
 
+  function exportJson() {
+    const payload = {
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      holdings,
+      targets,
+      newMoney,
+    }
+    const blob = new Blob([JSON.stringify(payload, null, 2)], {
+      type: 'application/json',
+    })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `portfolio-${new Date().toISOString().slice(0, 10)}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  function importJson(file: File) {
+    const reader = new FileReader()
+    reader.onload = () => {
+      try {
+        const parsed = JSON.parse(String(reader.result))
+        if (!parsed || typeof parsed !== 'object') {
+          throw new Error('not a json object')
+        }
+        const importedHoldings: Holding[] = Array.isArray(parsed.holdings)
+          ? parsed.holdings.filter(
+              (h: any) =>
+                h && typeof h.ticker === 'string' && typeof h.shares === 'number',
+            )
+          : []
+        const importedTargets: Allocation =
+          parsed.targets &&
+          typeof parsed.targets.us === 'number' &&
+          typeof parsed.targets.intl === 'number' &&
+          typeof parsed.targets.bond === 'number'
+            ? parsed.targets
+            : targets
+        const importedNewMoney =
+          typeof parsed.newMoney === 'number' ? parsed.newMoney : newMoney
+
+        setHoldings(importedHoldings)
+        setTargets(importedTargets)
+        setNewMoney(importedNewMoney)
+        setError(null)
+      } catch (err) {
+        setError(`import failed: ${err instanceof Error ? err.message : err}`)
+      }
+    }
+    reader.readAsText(file)
+  }
+
   function updateShares(ticker: string, shares: number) {
     setHoldings((prev) =>
       prev.map((h) =>
@@ -285,9 +339,31 @@ export default function App() {
       <section className="card">
         <div className="card__header">
           <h2>holdings</h2>
-          <button onClick={refresh} disabled={loading || holdings.length === 0}>
-            {loading ? 'fetching…' : 'fetch prices'}
-          </button>
+          <div className="card__actions">
+            <label className="link link--neutral small">
+              import
+              <input
+                type="file"
+                accept="application/json,.json"
+                hidden
+                onChange={(e) => {
+                  const f = e.target.files?.[0]
+                  if (f) importJson(f)
+                  e.target.value = ''
+                }}
+              />
+            </label>
+            <button
+              className="link link--neutral small"
+              onClick={exportJson}
+              disabled={holdings.length === 0}
+            >
+              export
+            </button>
+            <button onClick={refresh} disabled={loading || holdings.length === 0}>
+              {loading ? 'fetching…' : 'fetch prices'}
+            </button>
+          </div>
         </div>
 
         <form className="add-holding" onSubmit={addHolding}>
@@ -507,7 +583,11 @@ export default function App() {
                       <Cell key={i} fill={entry.color} />
                     ))}
                   </Pie>
-                  <Tooltip formatter={(v: number) => fmtMoney(v)} />
+                  <Tooltip
+                    formatter={(v) =>
+                      fmtMoney(typeof v === 'number' ? v : Number(v))
+                    }
+                  />
                   <Legend />
                 </PieChart>
               </ResponsiveContainer>

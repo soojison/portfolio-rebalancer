@@ -51,6 +51,16 @@
   margin: 0;
 }
 
+.card__actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.card__actions label.link {
+  cursor: pointer;
+}
+
 .add-holding {
   display: flex;
   gap: 0.5rem;
