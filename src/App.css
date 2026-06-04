@@ -179,6 +179,137 @@ tr.totals td {
   margin-top: 0.5rem;
 }
 
+.editor-row td {
+  background: #fafafa;
+  padding: 1rem;
+}
+
+.editor {
+  display: grid;
+  grid-template-columns: 1fr 1fr 2fr;
+  gap: 1rem;
+  align-items: start;
+}
+
+@media (max-width: 720px) {
+  .editor {
+    grid-template-columns: 1fr;
+  }
+}
+
+.editor__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.85rem;
+}
+
+.editor__field label {
+  color: #6b7280;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.alloc-inputs {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.alloc-input {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+}
+
+.alloc-input input {
+  width: 70px;
+  margin-left: auto;
+}
+
+.link--neutral {
+  color: #3b82f6;
+  margin-right: 0.5rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  .editor-row td {
+    background: #0f172a;
+  }
+  .editor__field label {
+    color: #94a3b8;
+  }
+}
+
+.pill {
+  display: inline-block;
+  margin-left: 0.4rem;
+  padding: 0.05rem 0.4rem;
+  border-radius: 999px;
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  vertical-align: middle;
+  border: 1px solid transparent;
+}
+
+.pill--stooq {
+  background: #ecfdf5;
+  color: #047857;
+  border-color: #a7f3d0;
+}
+.pill--vanguard {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border-color: #bfdbfe;
+}
+.pill--yahoo {
+  background: #fef3c7;
+  color: #92400e;
+  border-color: #fde68a;
+}
+.pill--static {
+  background: #f3f4f6;
+  color: #4b5563;
+  border-color: #e5e7eb;
+}
+.pill--manual {
+  background: #fdf4ff;
+  color: #86198f;
+  border-color: #f5d0fe;
+}
+
+@media (prefers-color-scheme: dark) {
+  .pill--stooq {
+    background: #064e3b;
+    color: #6ee7b7;
+    border-color: #065f46;
+  }
+  .pill--vanguard {
+    background: #1e3a8a;
+    color: #93c5fd;
+    border-color: #1e40af;
+  }
+  .pill--yahoo {
+    background: #78350f;
+    color: #fcd34d;
+    border-color: #92400e;
+  }
+  .pill--static {
+    background: #334155;
+    color: #cbd5e1;
+    border-color: #475569;
+  }
+  .pill--manual {
+    background: #581c87;
+    color: #f0abfc;
+    border-color: #6b21a8;
+  }
+}
+
 @media (prefers-color-scheme: dark) {
   .card {
     background: #1e293b;

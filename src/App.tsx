@@ -23,7 +23,11 @@ import type {
   Holding,
 } from './lib/types'
 import { ZERO_ALLOC } from './lib/types'
-import { fetchFundAllocation, fetchQuotes } from './lib/yahoo'
+import {
+  fetchFundAllocation,
+  fetchQuotes,
+  type PriceSource,
+} from './lib/yahoo'
 
 const STORAGE_KEY = 'portfolio-rebalancer:v1'
 const BUCKETS: Bucket[] = ['us', 'intl', 'bond']
@@ -74,7 +78,10 @@ export default function App() {
   const [sharesInput, setSharesInput] = useState('')
 
   const [quotes, setQuotes] = useState<
-    Record<string, { price: number | null; name?: string }>
+    Record<
+      string,
+      { price: number | null; name?: string; source?: PriceSource }
+    >
   >({})
   const [allocOverrides, setAllocOverrides] = useState<
     Record<string, { alloc: Allocation; source: 'api' | 'fallback-unknown' }>
@@ -93,12 +100,28 @@ export default function App() {
     return holdings.map((h) => {
       const sym = h.ticker.toUpperCase()
       const q = quotes[sym]
-      const price = q?.price ?? null
+
+      // Manual price wins over everything else.
+      const price =
+        typeof h.manualPrice === 'number' && h.manualPrice > 0
+          ? h.manualPrice
+          : (q?.price ?? null)
+      const priceSource: EnrichedHolding['priceSource'] =
+        typeof h.manualPrice === 'number' && h.manualPrice > 0
+          ? 'manual'
+          : q?.source && q.source !== 'none'
+            ? q.source
+            : undefined
+
       const value = price != null ? price * h.shares : null
+
       const staticAlloc = STATIC_ALLOCATIONS[sym]
       let alloc: Allocation
       let allocSource: EnrichedHolding['allocSource']
-      if (staticAlloc) {
+      if (h.manualAlloc) {
+        alloc = h.manualAlloc
+        allocSource = 'manual'
+      } else if (staticAlloc) {
         alloc = staticAlloc
         allocSource = 'static'
       } else if (allocOverrides[sym]) {
@@ -115,7 +138,8 @@ export default function App() {
         value,
         alloc,
         allocSource,
-        name: q?.name,
+        priceSource,
+        name: h.name ?? q?.name,
       }
     })
   }, [holdings, quotes, allocOverrides])
@@ -147,7 +171,15 @@ export default function App() {
     try {
       const tickers = holdings.map((h) => h.ticker.toUpperCase())
       const q = await fetchQuotes(tickers)
-      setQuotes(q)
+      // Merge: keep last-known prices for any ticker the new fetch didn't return.
+      // We compute the merged map synchronously so the `missing` check below
+      // sees the up-to-date prices (state updates are async).
+      const merged: typeof quotes = { ...quotes }
+      for (const t of tickers) {
+        if (q[t]?.price != null) merged[t] = q[t]
+        else if (!merged[t]) merged[t] = q[t] ?? { price: null }
+      }
+      setQuotes(merged)
 
       const unknown = tickers.filter((t) => !STATIC_ALLOCATIONS[t])
       const overrides: typeof allocOverrides = {}
@@ -166,9 +198,11 @@ export default function App() {
       )
       setAllocOverrides((prev) => ({ ...prev, ...overrides }))
 
-      const missing = tickers.filter((t) => q[t]?.price == null)
+      const missing = tickers.filter((t) => merged[t]?.price == null)
       if (missing.length > 0) {
-        setError(`couldn't get prices for: ${missing.join(', ')}`)
+        setError(
+          `couldn't get prices for: ${missing.join(', ')} (enter manually below)`,
+        )
       }
     } catch (err) {
       console.error(err)
@@ -181,13 +215,16 @@ export default function App() {
   function addHolding(e: React.FormEvent) {
     e.preventDefault()
     const ticker = tickerInput.trim().toUpperCase()
-    const shares = Number(sharesInput)
-    if (!ticker || !Number.isFinite(shares) || shares <= 0) return
+    if (!ticker) return
+    const parsed = parseFloat(sharesInput.replace(/[^0-9.\-]/g, ''))
+    const shares = Number.isFinite(parsed) && parsed > 0 ? parsed : 0
     setHoldings((prev) => {
       const existing = prev.find((h) => h.ticker.toUpperCase() === ticker)
       if (existing) {
         return prev.map((h) =>
-          h.ticker.toUpperCase() === ticker ? { ...h, shares } : h,
+          h.ticker.toUpperCase() === ticker
+            ? { ...h, shares: shares || h.shares }
+            : h,
         )
       }
       return [...prev, { ticker, shares }]
@@ -211,6 +248,16 @@ export default function App() {
       ),
     )
   }
+
+  function updateHolding(ticker: string, patch: Partial<Holding>) {
+    setHoldings((prev) =>
+      prev.map((h) =>
+        h.ticker.toUpperCase() === ticker.toUpperCase() ? { ...h, ...patch } : h,
+      ),
+    )
+  }
+
+  const [editingTicker, setEditingTicker] = useState<string | null>(null)
 
   function updateTarget(bucket: Bucket, pct: number) {
     setTargets((prev) => ({ ...prev, [bucket]: Math.max(0, pct / 100) }))
@@ -250,7 +297,8 @@ export default function App() {
             onChange={(e) => setTickerInput(e.target.value)}
           />
           <input
-            placeholder="# of shares"
+            placeholder="# of shares (optional)"
+            type="text"
             inputMode="decimal"
             value={sharesInput}
             onChange={(e) => setSharesInput(e.target.value)}
@@ -286,28 +334,58 @@ export default function App() {
                         unknown — assumed 100% US
                       </div>
                     )}
+                    {h.allocSource === 'static' && (
+                      <span className="pill pill--static" title="allocation from built-in table">
+                        built-in
+                      </span>
+                    )}
                     {h.allocSource === 'api' && (
-                      <div className="muted small">via yahoo profile</div>
+                      <span className="pill pill--yahoo" title="allocation from yahoo fund profile">
+                        yahoo
+                      </span>
                     )}
                   </td>
                   <td>
                     <input
                       className="shares-edit"
-                      type="number"
-                      step="0.001"
-                      value={h.shares}
-                      onChange={(e) =>
-                        updateShares(h.ticker, Number(e.target.value))
-                      }
+                      type="text"
+                      inputMode="decimal"
+                      value={h.shares === 0 ? '' : String(h.shares)}
+                      placeholder="0"
+                      onChange={(e) => {
+                        const v = e.target.value.replace(/[^0-9.\-]/g, '')
+                        const n = parseFloat(v)
+                        updateShares(h.ticker, Number.isFinite(n) ? n : 0)
+                      }}
                     />
                   </td>
-                  <td>{fmtMoney(h.price)}</td>
+                  <td>
+                    {fmtMoney(h.price)}
+                    {h.priceSource && (
+                      <span
+                        className={`pill pill--${h.priceSource}`}
+                        title={`price from ${h.priceSource}`}
+                      >
+                        {h.priceSource}
+                      </span>
+                    )}
+                  </td>
                   <td>{fmtMoney(h.value)}</td>
                   <td className="small">
                     {fmtPct(h.alloc.us)} / {fmtPct(h.alloc.intl)} /{' '}
                     {fmtPct(h.alloc.bond)}
                   </td>
                   <td>
+                    <button
+                      className="link link--neutral"
+                      onClick={() =>
+                        setEditingTicker(
+                          editingTicker === h.ticker ? null : h.ticker,
+                        )
+                      }
+                    >
+                      {editingTicker === h.ticker ? 'done' : 'edit'}
+                    </button>
                     <button
                       className="link"
                       onClick={() => removeHolding(h.ticker)}
@@ -317,6 +395,79 @@ export default function App() {
                   </td>
                 </tr>
               ))}
+              {editingTicker && (() => {
+                const h = enriched.find((x) => x.ticker === editingTicker)
+                if (!h) return null
+                const a = h.manualAlloc ?? h.alloc
+                return (
+                  <tr key={`${h.ticker}-editor`} className="editor-row">
+                    <td colSpan={6}>
+                      <div className="editor">
+                        <div className="editor__field">
+                          <label>nickname / name</label>
+                          <input
+                            type="text"
+                            placeholder="e.g. Vanguard Target 2060 Trust II"
+                            value={h.name ?? ''}
+                            onChange={(e) =>
+                              updateHolding(h.ticker, { name: e.target.value })
+                            }
+                          />
+                        </div>
+                        <div className="editor__field">
+                          <label>manual price ($)</label>
+                          <input
+                            type="text"
+                            inputMode="decimal"
+                            placeholder="leave blank to use API"
+                            value={h.manualPrice ?? ''}
+                            onChange={(e) => {
+                              const v = e.target.value.replace(/[^0-9.\-]/g, '')
+                              const n = parseFloat(v)
+                              updateHolding(h.ticker, {
+                                manualPrice:
+                                  Number.isFinite(n) && n > 0 ? n : undefined,
+                              })
+                            }}
+                          />
+                        </div>
+                        <div className="editor__field editor__field--wide">
+                          <label>custom allocation (%)</label>
+                          <div className="alloc-inputs">
+                            {BUCKETS.map((b) => (
+                              <AllocInput
+                                key={b}
+                                bucket={b}
+                                value={h.manualAlloc ? a[b] : null}
+                                placeholder={a[b]}
+                                onChange={(frac) => {
+                                  const next: Allocation = {
+                                    ...(h.manualAlloc ?? h.alloc),
+                                    [b]: frac,
+                                  }
+                                  updateHolding(h.ticker, { manualAlloc: next })
+                                }}
+                              />
+                            ))}
+                            {h.manualAlloc && (
+                              <button
+                                className="link link--neutral small"
+                                onClick={() =>
+                                  updateHolding(h.ticker, {
+                                    manualAlloc: undefined,
+                                  })
+                                }
+                              >
+                                reset
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })()}
               <tr className="totals">
                 <td colSpan={3}>
                   <strong>total</strong>
@@ -508,5 +659,61 @@ export default function App() {
         allocations drift.
       </footer>
     </div>
+  )
+}
+
+function AllocInput({
+  bucket,
+  value,
+  placeholder,
+  onChange,
+}: {
+  bucket: Bucket
+  value: number | null
+  placeholder: number
+  onChange: (frac: number) => void
+}) {
+  // Keep the displayed string in local state so the user can type things like
+  // "10.99" without the parent re-formatting and rounding mid-keystroke.
+  const [draft, setDraft] = useState<string>(() =>
+    value == null ? '' : String(Math.round(value * 10000) / 100),
+  )
+
+  useEffect(() => {
+    if (value == null) {
+      setDraft('')
+      return
+    }
+    const formatted = String(Math.round(value * 10000) / 100)
+    // Only sync from props when the parsed numeric value differs from the
+    // current draft. Otherwise typing "10." would get clobbered back to "10".
+    const parsedDraft = parseFloat(draft)
+    if (!Number.isFinite(parsedDraft) || Math.abs(parsedDraft / 100 - value) > 1e-6) {
+      setDraft(formatted)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value])
+
+  return (
+    <label className="alloc-input">
+      <span
+        className="swatch"
+        style={{ background: BUCKET_COLOR[bucket] }}
+      />
+      {BUCKET_LABEL[bucket]}
+      <input
+        type="text"
+        inputMode="decimal"
+        value={draft}
+        placeholder={String(Math.round(placeholder * 10000) / 100)}
+        onChange={(e) => {
+          const raw = e.target.value.replace(/[^0-9.]/g, '')
+          setDraft(raw)
+          const n = parseFloat(raw)
+          if (Number.isFinite(n)) onChange(n / 100)
+        }}
+      />
+      %
+    </label>
   )
 }
